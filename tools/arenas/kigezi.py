@@ -14,7 +14,7 @@ import arena_lib as L
 import arena_flora as F
 import arena_build as B
 if '--game' in sys.argv:
-    F.CARD_SCALE = 0.3
+    F.CARD_SCALE = 0.45
     F.CARD_SIZE = 1.6
     F.CORE_SUBDIV = 1
 
@@ -51,14 +51,15 @@ def kigezi_height(x, y):
     return h * (1 - s)
 
 
-m_grass = L.noisy("Grass", (0.34, 0.46, 0.17), (0.43, 0.53, 0.21), scale=0.4, rough=0.9, bump=0.3,
-                  c3=(0.52, 0.42, 0.30), scale2=0.06)  # c3: trampled bare-earth patches
+# deep, dark greens (0.9.3): Kigezi is lush, not pale
+m_grass = L.noisy("Grass", (0.19, 0.31, 0.09), (0.26, 0.39, 0.12), scale=0.4, rough=0.9, bump=0.3,
+                  c3=(0.38, 0.30, 0.20), scale2=0.06)  # c3: trampled bare-earth patches
 m_fields = L.field_patchwork("Fields", [
-    (0.33, 0.47, 0.16), (0.40, 0.53, 0.19), (0.27, 0.40, 0.12), (0.46, 0.56, 0.22),
-    (0.50, 0.36, 0.24), (0.42, 0.29, 0.19), (0.62, 0.57, 0.32), (0.22, 0.34, 0.12),
-    (0.36, 0.50, 0.20), (0.56, 0.44, 0.28),
-], patch=(34.0, 34.0), band=STEP, bank_color=(0.30, 0.40, 0.16))
-m_shore = L.noisy("Shore", (0.28, 0.38, 0.14), (0.38, 0.34, 0.22), scale=0.2, rough=0.9, bump=0.2)
+    (0.20, 0.34, 0.10), (0.26, 0.40, 0.12), (0.16, 0.28, 0.08), (0.30, 0.43, 0.14),
+    (0.40, 0.29, 0.19), (0.34, 0.24, 0.16), (0.46, 0.44, 0.24), (0.13, 0.24, 0.07),
+    (0.23, 0.37, 0.12), (0.33, 0.39, 0.17),
+], patch=(34.0, 34.0), band=STEP, bank_color=(0.17, 0.27, 0.08))
+m_shore = L.noisy("Shore", (0.18, 0.28, 0.09), (0.30, 0.27, 0.17), scale=0.2, rough=0.9, bump=0.2)
 m_dirt = L.noisy("Dirt", (0.48, 0.36, 0.25), (0.56, 0.43, 0.30), scale=0.8, rough=0.95, bump=0.3)
 
 
@@ -89,7 +90,7 @@ def ring_height(inner, drop):
 
 near = L.heightfield("TerrainNear", 360, 120 if QUICK else (100 if GAME else 300), kigezi_height, m_grass)
 assign_by_zone(near)
-mid = L.heightfield("TerrainMid", 2400, 150 if QUICK else (160 if GAME else 600), ring_height(170, 2.0), m_fields)
+mid = L.heightfield("TerrainMid", 2400, 150 if QUICK else (230 if GAME else 600), ring_height(170, 2.0), m_fields)
 assign_by_zone(mid)
 far = L.heightfield("TerrainFar", 16000, 120 if QUICK else (64 if GAME else 320), ring_height(1150, 6.0), m_fields)
 assign_by_zone(far)
@@ -111,11 +112,11 @@ B.fence("Fence", [(16, -30, 0), (19, -10, 0), (19, 10, 0), (16, 30, 0)], wood, r
 # ------------------------------------------------------------------ vegetation templates
 bark_euc = L.noisy("BarkEuc", (0.80, 0.76, 0.70), (0.62, 0.56, 0.48), scale=4, rough=0.8, bump=0.3,
                    c3=(0.66, 0.52, 0.38), scale2=1.0)
-cards_euc = L.leaf_card("EucLeaves", (0.30, 0.40, 0.24), (0.42, 0.50, 0.32), tiles=(3, 1), width=0.36, power=1.1)
+cards_euc = L.leaf_card("EucLeaves", (0.22, 0.31, 0.17), (0.31, 0.40, 0.23), tiles=(4, 2), width=0.47, power=0.9)
 inner_euc = L.flat("EucInner", (0.24, 0.31, 0.19), rough=0.9)
 leaf_ban = L.leaf("LeafBanana", (0.40, 0.58, 0.18), (0.52, 0.66, 0.24), translucency=0.35)
 stem_ban = L.noisy("BananaStem", (0.44, 0.50, 0.26), (0.54, 0.48, 0.32), scale=3)
-cards_dark = L.leaf_card("DarkLeaves", (0.20, 0.33, 0.12), (0.30, 0.42, 0.16), tiles=(3, 2), width=0.45, power=0.7)
+cards_dark = L.leaf_card("DarkLeaves", (0.13, 0.24, 0.07), (0.21, 0.32, 0.10), tiles=(3, 2), width=0.45, power=0.7)
 inner_dark = L.flat("DarkInner", (0.08, 0.14, 0.05), rough=0.9)
 bark = L.noisy("Bark", (0.33, 0.26, 0.20), (0.44, 0.36, 0.28), scale=5, rough=0.9, bump=0.5)
 
@@ -235,7 +236,7 @@ cams = {
 }
 if GAME:
     import game_export
-    game_export.export(os.path.join(OUT, 'kigezi.glb'), rot_deg=90)
+    game_export.export(os.path.join(OUT, 'kigezi.glb'), rot_deg=90, ao={"TerrainNear": 14.0, "TerrainMid": 45.0}, darken=1.0)
     sys.exit(0)
 only = [a for a in args if a.startswith('--cam=')]
 for key, cam in cams.items():

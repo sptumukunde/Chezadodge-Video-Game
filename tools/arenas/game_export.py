@@ -105,7 +105,28 @@ def _leaf_material(m, spec):
     m.use_backface_culling = False
 
 
-def _bake_terrain(ob, res, darken=1.0, keep_uv=False):
+def _bake_ao(ob, res, distance, samples=12):
+    """Ambient occlusion of the terrain under trees, houses and terrace banks."""
+    img = bpy.data.images.new(ob.name + "_ao", res, res, alpha=False, float_buffer=False)
+    img.colorspace_settings.name = 'Non-Color'
+    for m in ob.data.materials:
+        t = m.node_tree.nodes.new("ShaderNodeTexImage")
+        t.image = img
+        m.node_tree.nodes.active = t
+    sc = bpy.context.scene
+    sc.render.engine = 'CYCLES'
+    sc.cycles.samples = samples
+    sc.world.light_settings.distance = distance
+    sc.render.bake.margin = 4
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.bake(type='AO')
+    return np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)[:, 0]
+
+
+def _bake_terrain(ob, res, darken=1.0, keep_uv=False, ao_dist=0.0):
     """Bake the object's (procedural, multi-material) colour into one texture."""
     me = ob.data
     if keep_uv and me.uv_layers:
@@ -137,6 +158,11 @@ def _bake_terrain(ob, res, darken=1.0, keep_uv=False):
     ob.select_set(True)
     bpy.context.view_layer.objects.active = ob
     bpy.ops.object.bake(type='DIFFUSE')
+    if ao_dist > 0:
+        ao = _bake_ao(ob, res, ao_dist)
+        px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+        px[:, :3] *= (0.38 + 0.62 * np.clip(ao, 0, 1) ** 1.2)[:, None]
+        img.pixels.foreach_set(px.ravel())
     if darken != 1.0:
         px = np.array(img.pixels[:], dtype=np.float32).reshape(-1, 4)
         px[:, :3] *= darken
@@ -191,7 +217,7 @@ def _bake_with_uv(ob, res):
 
 
 def _kind(template_name):
-    for k in ("Euc", "Rnd", "Mango", "Jac", "Acacia", "Palm", "FarTree", "Fig", "Giant", "Mid", "Pine"):
+    for k in ("Euc", "Rnd", "Mango", "Jac", "Acacia", "Palm", "FarTree", "Fig", "Giant", "Mid", "Pine", "Maple", "Willow"):
         if template_name.startswith(k):
             return "tree"
     if template_name.startswith(("Ban", "Shrub", "Bush", "Tuft", "Aloe", "Fern")):
@@ -219,6 +245,8 @@ def _proxy_for(t):
     crown_h = h * (0.45 if not t.name.startswith("Acacia") else 0.25)
     crown = L.blob(t.name + "_pc", 1.0, (0, 0, h - crown_h * 0.55), lm,
                    squash=(max(rx, 0.8) * 0.85, max(ry, 0.8) * 0.85, crown_h * 0.6), rough=0.25, subdiv=0)
+    for poly in crown.data.polygons:
+        poly.use_smooth = True  # soft, rounded distant crowns instead of facets
     trunk = L.cylinder(t.name + "_pt", 0.25, 0.15, h - crown_h * 0.6, (0, 0, 0), bark, seg=4, cap=False)
     p = L.join([crown, trunk], t.name + "_proxy")
     p.hide_render = True
@@ -253,7 +281,7 @@ def _realize(ob, mesh):
 
 def export(out_path, rot_deg=0.0, near_r=260.0, far_r=1800.0, near_trees=90, far_trees=900,
            small_r=140.0, prop_r=1600.0, max_props=2200, terrain_res=None, clear_r=11.0,
-           house_r=300.0, darken=0.82):
+           house_r=300.0, darken=0.82, ao=None):
     terrain_res = terrain_res or {"TerrainNear": 2048, "TerrainMid": 2048, "TerrainFar": 1024}
     sc = bpy.context.scene
     # 1. drop what the game draws itself, lights, cameras, particles
@@ -273,7 +301,7 @@ def export(out_path, rot_deg=0.0, near_r=260.0, far_r=1800.0, near_trees=90, far
         t = bpy.data.objects.get(tn)
         if t is None:
             continue
-        _bake_terrain(t, res, darken=darken)
+        _bake_terrain(t, res, darken=darken, ao_dist=(ao or {}).get(tn, 0.0))
         for v in t.data.vertices:
             if math.hypot(v.co.x, v.co.y) < 40:
                 v.co.z -= 0.03
