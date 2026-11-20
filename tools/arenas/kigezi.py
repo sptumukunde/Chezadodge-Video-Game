@@ -13,10 +13,15 @@ from mathutils import Vector
 import arena_lib as L
 import arena_flora as F
 import arena_build as B
+if '--game' in sys.argv:
+    F.CARD_SCALE = 0.3
+    F.CARD_SIZE = 1.6
+    F.CORE_SUBDIV = 1
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 OUT = args[0] if args else '/tmp/arenas'
 QUICK = '--quick' in args
+GAME = '--game' in args  # phone-friendly GLB for the game instead of renders
 os.makedirs(OUT, exist_ok=True)
 
 L.reset_scene()
@@ -82,11 +87,11 @@ def ring_height(inner, drop):
     return fn
 
 
-near = L.heightfield("TerrainNear", 360, 120 if QUICK else 300, kigezi_height, m_grass)
+near = L.heightfield("TerrainNear", 360, 120 if QUICK else (100 if GAME else 300), kigezi_height, m_grass)
 assign_by_zone(near)
-mid = L.heightfield("TerrainMid", 2400, 150 if QUICK else 600, ring_height(170, 2.0), m_fields)
+mid = L.heightfield("TerrainMid", 2400, 150 if QUICK else (160 if GAME else 600), ring_height(170, 2.0), m_fields)
 assign_by_zone(mid)
-far = L.heightfield("TerrainFar", 16000, 120 if QUICK else 320, ring_height(1150, 6.0), m_fields)
+far = L.heightfield("TerrainFar", 16000, 120 if QUICK else (64 if GAME else 320), ring_height(1150, 6.0), m_fields)
 assign_by_zone(far)
 
 L.box("Lake", (16000, 16000, 0.1), (0, 0, WATER), L.water("Water", deep=(0.10, 0.20, 0.22)))
@@ -215,8 +220,8 @@ def shelf_density(co):
 
 
 dg = L.density_group(near, "shelf", shelf_density)
-L.scatter_particles(near, tuft, 30000 if QUICK else 380000, seed=1, density_group=dg, name="g1")
-L.scatter_particles(near, tuft2, 6000 if QUICK else 70000, seed=2, density_group=dg, name="g2")
+if not GAME: L.scatter_particles(near, tuft, 30000 if QUICK else 380000, seed=1, density_group=dg, name="g1")
+if not GAME: L.scatter_particles(near, tuft2, 6000 if QUICK else 70000, seed=2, density_group=dg, name="g2")
 
 # ------------------------------------------------------------------ sky, light, cameras
 L.sky_world(clouds=0.5, cloud_seed=3.0, sun_elev_deg=34, sun_rot_deg=205, air=1.0, aerosol=1.0, strength=0.45,
@@ -228,6 +233,10 @@ cams = {
     "lakeside": L.camera("CamLake", (-16, -22, 5.0), (120, 60, -30), lens=22),
     "aerial": L.camera("CamAerial", (-120, -160, 90), (60, 40, -20), lens=26),
 }
+if GAME:
+    import game_export
+    game_export.export(os.path.join(OUT, 'kigezi.glb'), rot_deg=90)
+    sys.exit(0)
 only = [a for a in args if a.startswith('--cam=')]
 for key, cam in cams.items():
     if only and only[0][6:] != key:

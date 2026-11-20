@@ -14,10 +14,15 @@ from mathutils import Vector
 import arena_lib as L
 import arena_flora as F
 import arena_build as B
+if '--game' in sys.argv:
+    F.CARD_SCALE = 0.3
+    F.CARD_SIZE = 1.6
+    F.CORE_SUBDIV = 1
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 OUT = args[0] if args else '/tmp/arenas'
 QUICK = '--quick' in args
+GAME = '--game' in args  # phone-friendly GLB for the game instead of renders
 os.makedirs(OUT, exist_ok=True)
 
 L.reset_scene()
@@ -53,9 +58,9 @@ murram = L.noisy("Murram", (0.60, 0.31, 0.19), (0.68, 0.38, 0.23), scale=0.5, ro
                  c3=(0.36, 0.42, 0.17), scale2=0.07)  # c3: weedy grass patches
 suburb = L.noisy("Suburb", (0.26, 0.36, 0.14), (0.36, 0.42, 0.18), scale=0.03, rough=0.9, bump=0.2,
                  c3=(0.58, 0.36, 0.24), scale2=0.012)
-near = L.heightfield("TerrainNear", 300, 100 if QUICK else 260, kampala_height, murram)
-mid = L.heightfield("TerrainMid", 2600, 130 if QUICK else 420, ring_height(145, 1.0), suburb)
-far = L.heightfield("TerrainFar", 14000, 100 if QUICK else 260, ring_height(1250, 4.0), suburb)
+near = L.heightfield("TerrainNear", 300, 100 if QUICK else (100 if GAME else 260), kampala_height, murram)
+mid = L.heightfield("TerrainMid", 2600, 130 if QUICK else (150 if GAME else 420), ring_height(145, 1.0), suburb)
+far = L.heightfield("TerrainFar", 14000, 100 if QUICK else (64 if GAME else 260), ring_height(1250, 4.0), suburb)
 
 # ------------------------------------------------------------------ court & surrounds
 L.court()
@@ -219,7 +224,7 @@ def weed_density(co):
 
 
 dg = L.density_group(near, "weeds", weed_density)
-L.scatter_particles(near, tuft, 15000 if QUICK else 160000, seed=4, density_group=dg, name="weeds")
+if not GAME: L.scatter_particles(near, tuft, 15000 if QUICK else 160000, seed=4, density_group=dg, name="weeds")
 
 # ------------------------------------------------------------------ sky, light, cameras
 L.sky_world(clouds=0.46, cloud_seed=9.0, sun_elev_deg=52, sun_rot_deg=120, air=1.0, aerosol=1.4, strength=0.45,
@@ -231,6 +236,10 @@ cams = {
     "street": L.camera("CamStreet", (8, -24, 3.2), (-28, 30, 3), lens=22),
     "city": L.camera("CamCity", (14, -30, 7.0), (60, 700, 60), lens=30),
 }
+if GAME:
+    import game_export
+    game_export.export(os.path.join(OUT, 'kampala.glb'), rot_deg=-90, near_trees=60, darken=0.7)
+    sys.exit(0)
 only = [a for a in args if a.startswith('--cam=')]
 for key, cam in cams.items():
     if only and only[0][6:] != key:

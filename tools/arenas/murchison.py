@@ -15,10 +15,15 @@ from mathutils import Vector
 import arena_lib as L
 import arena_flora as F
 import arena_build as B
+if '--game' in sys.argv:
+    F.CARD_SCALE = 0.3
+    F.CARD_SIZE = 1.6
+    F.CORE_SUBDIV = 1
 
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 OUT = args[0] if args else '/tmp/arenas'
 QUICK = '--quick' in args
+GAME = '--game' in args  # phone-friendly GLB for the game instead of renders
 os.makedirs(OUT, exist_ok=True)
 
 L.reset_scene()
@@ -84,11 +89,11 @@ def assign(ob):
             p.material_index = 1
 
 
-near = L.heightfield("TerrainNear", 360, 110 if QUICK else 300, murchison_height, m_short)
+near = L.heightfield("TerrainNear", 360, 110 if QUICK else (100 if GAME else 300), murchison_height, m_short)
 assign(near)
-mid = L.heightfield("TerrainMid", 2800, 140 if QUICK else 560, ring_height(170, 1.0), m_savanna)
+mid = L.heightfield("TerrainMid", 2800, 140 if QUICK else (160 if GAME else 560), ring_height(170, 1.0), m_savanna)
 assign(mid)
-far = L.heightfield("TerrainFar", 16000, 110 if QUICK else 320, ring_height(1390, 4.0), m_savanna)
+far = L.heightfield("TerrainFar", 16000, 110 if QUICK else (64 if GAME else 320), ring_height(1390, 4.0), m_savanna)
 assign(far)
 L.box("Nile", (16000, 16000, 0.1), (0, 0, WATER),
       L.water("NileWater", deep=(0.26, 0.30, 0.22), rough=0.08, wave_scale=0.25, wave=0.12))
@@ -259,9 +264,9 @@ def tall_density(co):
 
 
 dg = L.density_group(near, "short", short_density)
-L.scatter_particles(near, tuft, 30000 if QUICK else 380000, seed=1, density_group=dg, name="short")
+if not GAME: L.scatter_particles(near, tuft, 30000 if QUICK else 380000, seed=1, density_group=dg, name="short")
 dt = L.density_group(near, "tall", tall_density)
-L.scatter_particles(near, tall, 60000 if QUICK else 700000, seed=2, density_group=dt, name="tall")
+if not GAME: L.scatter_particles(near, tall, 60000 if QUICK else 700000, seed=2, density_group=dt, name="tall")
 
 # ------------------------------------------------------------------ sky, light, cameras
 L.sky_world(clouds=0.48, cloud_seed=17.0, sun_elev_deg=46, sun_rot_deg=235, air=1.0, aerosol=1.6,
@@ -273,6 +278,10 @@ cams = {
     "river": L.camera("CamRiver", (-10, -18, 7.0), (40, 300, -20), lens=24),
     "falls": L.camera("CamFalls", (40, 120, 6.0), (2100, 330, 20), lens=45),
 }
+if GAME:
+    import game_export
+    game_export.export(os.path.join(OUT, 'murchison.glb'), rot_deg=0)
+    sys.exit(0)
 only = [a for a in args if a.startswith('--cam=')]
 for key, cam in cams.items():
     if only and only[0][6:] != key:

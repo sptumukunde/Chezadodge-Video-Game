@@ -11,6 +11,9 @@ from mathutils import Vector
 import arena_lib as L
 
 UP = Vector((0, 0, 1))
+CARD_SCALE = 1.0  # game export uses fewer leaf cards per tree
+CORE_SUBDIV = 2   # inner crown blobs; 1 for the game export
+CARD_SIZE = 1.0   # leaf card size multiplier (bigger, fewer cards in the game)
 
 
 def _orient(ob, a, b):
@@ -30,6 +33,7 @@ def leaf_cloud(name, clumps, n, mat, size=(0.5, 0.35), hang=0.0, flat=0.0, seed=
     hang: 0 random orientation .. 1 cards hang straight down (eucalyptus).
     flat: 0 random .. 1 cards lie horizontal (acacia layers)."""
     rnd = random.Random(seed)
+    n = max(1, int(n * CARD_SCALE))
     vols = [r.x * r.y * r.z for _, r in clumps]
     tot = sum(vols)
     verts, faces, uvs = [], [], []
@@ -51,7 +55,7 @@ def leaf_cloud(name, clumps, n, mat, size=(0.5, 0.35), hang=0.0, flat=0.0, seed=
         if flat > 0:
             side = side.lerp(down.cross(UP), flat)
         side.normalize()
-        s = rnd.uniform(0.75, 1.25)
+        s = rnd.uniform(0.75, 1.25) * CARD_SIZE
         ln, wd = size[0] * s, size[1] * s * 0.5
         a = p - side * wd
         b = p + side * wd
@@ -67,7 +71,7 @@ def leaf_cloud(name, clumps, n, mat, size=(0.5, 0.35), hang=0.0, flat=0.0, seed=
 
 
 def core(name, clumps, mat, scale=0.55, seed=0):
-    return [L.blob(name, 1.0, tuple(c), mat, squash=tuple(r * scale), rough=0.3, seed=seed + i, subdiv=2)
+    return [L.blob(name, 1.0, tuple(c), mat, squash=tuple(r * scale), rough=0.3, seed=seed + i, subdiv=CORE_SUBDIV)
             for i, (c, r) in enumerate(clumps)]
 
 

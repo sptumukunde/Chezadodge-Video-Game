@@ -377,11 +377,15 @@ def leaf(name, c1, c2, translucency=0.25):
     return m
 
 
+LEAF_CARDS = {}
+
+
 def leaf_card(name, c1, c2, tiles=(4, 1), width=0.42, power=1.0, translucency=0.35, rough=0.6):
     """Alpha-masked leaf sprite material for card foliage.
 
     Each card UV is split into tiles; every tile holds one leaf whose half-width
     follows sin(pi*v)**power (lanceolate for power~1, rounder for <1)."""
+    LEAF_CARDS[name] = dict(c1=c1, c2=c2, tiles=tiles, width=width, power=power)
     m, nt, p, out = _mat(name)
     N = nt.nodes
     lk = nt.links.new
