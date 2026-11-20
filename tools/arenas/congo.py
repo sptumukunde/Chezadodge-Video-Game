@@ -84,6 +84,6 @@ C.scatter(C.res(1500, 4000, 4000), (-2200, 2200, -2200, 2200), lambda x, y: math
 mist_mat = L.soft_card("Spray", (0.90, 0.94, 0.92), opacity=0.06)
 F.leaf_cloud("Mist", [(Vector((0, 90, 12)), Vector((120, 50, 10))), (Vector((-70, -60, 10)), Vector((60, 40, 8)))], 220, mist_mat, size=(22, 22), seed=9, shell=0.0)
 
-C.finish("congo", rot_deg=0, sky=dict(clouds=0.55, cloud_seed=30.0, sun_elev_deg=62, sun_rot_deg=170, aerosol=1.6,
+C.finish("congo", rot_deg=0, export_kw={"near_trees": 45, "far_trees": 700}, sky=dict(clouds=0.55, cloud_seed=30.0, sun_elev_deg=62, sun_rot_deg=170, aerosol=1.6,
                                      strength=0.4, haze_density=0.0002, haze_color=(0.78, 0.84, 0.80), sun_energy=4.2),
          cams={"broadcast": ((0, -27, 9.5), (0, 8, 2), 24), "clearing": ((-8, -14, 2.5), (10, 60, 12), 22)})
