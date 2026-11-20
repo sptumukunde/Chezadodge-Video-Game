@@ -41,7 +41,7 @@ def h(x, y):
 
 H = C.shelf(h, 28, 70)
 lawn = L.noisy("Lawn", (0.34, 0.50, 0.20), (0.42, 0.56, 0.24), scale=0.4, rough=0.9, bump=0.3)
-paving = L.noisy("Paving", (0.70, 0.68, 0.64), (0.78, 0.76, 0.72), scale=1.2, rough=0.85, bump=0.15)
+paving = L.noisy("Paving", (0.50, 0.48, 0.45), (0.56, 0.54, 0.50), scale=1.2, rough=0.85, bump=0.15)
 fynbos = L.noisy("Fynbos", (0.40, 0.44, 0.30), (0.52, 0.50, 0.36), scale=0.02, rough=0.95, bump=0.2, c3=(0.60, 0.58, 0.50), scale2=0.006)
 cliff = L.noisy("Sandstone", (0.62, 0.58, 0.52), (0.48, 0.44, 0.40), scale=0.01, rough=0.9, bump=0.6, c3=(0.36, 0.40, 0.30), scale2=0.003)
 
