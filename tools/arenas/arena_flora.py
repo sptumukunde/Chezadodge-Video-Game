@@ -228,3 +228,23 @@ def shrub(name, cards, inner, size=1.0, seed=0, n_cards=260):
 
 def rock(name, mat, size=1.0, seed=0):
     return L.blob(name, size, (0, 0, size * 0.25), mat, squash=(1.2, 1.0, 0.6), rough=0.35, seed=seed, subdiv=3)
+
+
+def aloe(name, leaf_mat, flower_mat, size=1.0, seed=0):
+    """Aloe ferox style: rosette of thick tapering leaves on a short stem, red flower spikes."""
+    rnd = random.Random(seed)
+    parts = [L.cylinder(name + "Stem", 0.12 * size, 0.1 * size, 0.9 * size, (0, 0, 0), leaf_mat, seg=6)]
+    top = Vector((0, 0, 0.9 * size))
+    for i in range(18):
+        a = 2 * math.pi * i / 18 + rnd.uniform(-0.15, 0.15)
+        pitch = rnd.uniform(0.1, 0.9)
+        d = Vector((math.cos(a) * math.cos(pitch), math.sin(a) * math.cos(pitch), math.sin(pitch)))
+        ln = rnd.uniform(0.6, 0.9) * size
+        tip = top + d * ln
+        parts.append(limb(name + "L", top, tip, 0.07 * size, 0.008, leaf_mat, seg=4))
+    for k in range(rnd.randint(2, 4)):
+        a = rnd.uniform(0, 2 * math.pi)
+        base = top + Vector((math.cos(a) * 0.1, math.sin(a) * 0.1, 0))
+        tipf = base + Vector((math.cos(a) * 0.25, math.sin(a) * 0.25, rnd.uniform(0.9, 1.3) * size))
+        parts.append(limb(name + "F", base, tipf, 0.06 * size, 0.03 * size, flower_mat, seg=5))
+    return L.join(parts, name)

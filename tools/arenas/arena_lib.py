@@ -711,8 +711,13 @@ def join(objs, name):
         o.select_set(True)
     ctx.view_layer.objects.active = objs[0]
     bpy.ops.object.join()
-    objs[0].name = name
-    return objs[0]
+    ob = objs[0]
+    ob.name = name
+    # put the origin at the world origin: parts are modelled around (0,0,0)
+    # and the joined object is then placed/rotated by its caller
+    ob.data.transform(ob.matrix_basis)
+    ob.matrix_basis = Matrix.Identity(4)
+    return ob
 
 
 def instance(src, loc, rot_z=0.0, scale=1.0, col="Arena"):

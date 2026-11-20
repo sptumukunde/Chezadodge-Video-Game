@@ -1,5 +1,6 @@
 """Procedural Ugandan buildings and props for ChezaDodge arenas."""
 import math
+import bpy
 import random
 from mathutils import Vector
 import arena_lib as L
@@ -148,3 +149,97 @@ def fence(name, pts, wood, rope, post_h=1.1, gap=3.0):
         parts.append(wire(name + "Rope", top_a, top_b, 0.06, rope, seg=12))
     parts.append(L.cylinder(name + "P", 0.07, 0.06, post_h, tuple(pts[-1]), wood, seg=6))
     return L.join(parts, name)
+
+
+# ---------------------------------------------------------------- 0.9.1b pieces
+
+def thatch_dome(name, thatch, r=9.0, h=8.5, door=None, seg=28):
+    """Kasubi-style royal house: a single thatched dome reaching the ground."""
+    import bmesh
+    bm = bmesh.new()
+    rings = 10
+    verts = []
+    for i in range(rings + 1):
+        t = i / rings
+        rr = r * math.cos(t * math.pi / 2) ** 0.55
+        z = h * math.sin(t * math.pi / 2) ** 1.2
+        verts.append([bm.verts.new((rr * math.cos(2 * math.pi * k / seg), rr * math.sin(2 * math.pi * k / seg), z)) for k in range(seg)])
+    for i in range(rings):
+        for k in range(seg):
+            a, b = verts[i][k], verts[i][(k + 1) % seg]
+            c, d = verts[i + 1][(k + 1) % seg], verts[i + 1][k]
+            bm.faces.new((a, b, c, d))
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.shade_smooth()
+    ob = bpy.data.objects.new(name, me)
+    me.materials.append(thatch)
+    L.link(ob)
+    parts = [ob]
+    if door:
+        parts.append(L.box(name + "Door", (2.6, 1.2, 3.2), (0, -r * 0.93, 1.6), door))
+    return L.join(parts, name)
+
+
+def reed_fence(name, radius, height, mat, gap_deg=24.0, step=0.12):
+    """Woven reed fence (kisakaate) in a ring, open at the front."""
+    parts = []
+    n = int(2 * math.pi * radius / 2.0)
+    for i in range(n):
+        a0 = 2 * math.pi * i / n
+        a1 = 2 * math.pi * (i + 1) / n
+        mid = (a0 + a1) / 2
+        if abs(((math.degrees(mid) + 90) % 360) - 180) > 180 - gap_deg:
+            continue
+        p0 = Vector((radius * math.cos(a0), radius * math.sin(a0), 0))
+        p1 = Vector((radius * math.cos(a1), radius * math.sin(a1), 0))
+        c = (p0 + p1) / 2
+        rz = math.atan2(p1.y - p0.y, p1.x - p0.x)
+        seg_ = L.box(name, ((p1 - p0).length, 0.12, height), (c.x, c.y, height / 2), mat, rot_z=rz)
+        parts.append(seg_)
+        # reed bundles + a binding rail give the woven kisakaate look
+        parts.append(L.box(name + "Rail", ((p1 - p0).length, 0.2, 0.12), (c.x, c.y, height * 0.72), mat, rot_z=rz))
+        parts.append(L.cylinder(name + "Post", 0.09, 0.07, height + 0.35, (p0.x, p0.y, 0), mat, seg=5))
+    return L.join(parts, name)
+
+
+def tower_block(name, w, d, h, wall, glass, loc, rot=0.0, bands=True):
+    parts = [L.box(name, (w, d, h), (0, 0, h / 2), wall)]
+    if bands:
+        floors = max(1, int(h / 3.4))
+        for f in range(floors):
+            z = 2.0 + f * 3.4
+            if z > h - 1:
+                break
+            parts.append(L.box(name + "G", (w + 0.06, d + 0.06, 1.6), (0, 0, z), glass))
+    ob = L.join(parts, name)
+    ob.location = loc
+    ob.rotation_euler.z = rot
+    return ob
+
+
+def dome(name, r, mat, loc, frame=None):
+    ob = L.blob(name, r, loc, mat, squash=(1, 1, 1), rough=0.0, subdiv=3)
+    for v in ob.data.vertices:
+        if v.co.z < 0:
+            v.co.z = 0
+    if frame:
+        ring = L.cylinder(name + "Ring", r * 1.02, r * 1.02, 0.4, (loc[0], loc[1], loc[2]), frame, seg=24)
+        return L.join([ob, ring], name)
+    return ob
+
+
+def mast(name, h, metal, light=None):
+    parts = [L.cylinder(name, 0.25, 0.12, h, (0, 0, 0), metal, seg=8)]
+    for k in range(4):
+        z = h * (0.3 + 0.18 * k)
+        parts.append(L.box(name + "Arm", (2.5 - k * 0.4, 0.08, 0.08), (0, 0, z), metal))
+    if light:
+        parts.append(L.blob(name + "L", 0.35, (0, 0, h + 0.2), light, rough=0.0, subdiv=2))
+    return L.join(parts, name)
+
+
+def container(name, mat, loc, rot=0.0):
+    ob = L.box(name, (12.2, 2.44, 2.6), loc, mat, rot_z=rot)
+    return ob

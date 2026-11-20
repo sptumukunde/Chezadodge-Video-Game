@@ -39,7 +39,14 @@ def _ramp_avg(nt):
     return [0.5, 0.5, 0.5]
 
 
-def _plain(m, color, rough=0.85, alpha=None):
+def _emission(nt):
+    p = nt.nodes.get("Principled BSDF")
+    if p and p.inputs["Emission Strength"].default_value > 0:
+        return list(p.inputs["Emission Color"].default_value[:3]), p.inputs["Emission Strength"].default_value
+    return None, 0.0
+
+
+def _plain(m, color, rough=0.85, alpha=None, emit=None, emit_s=0.0):
     nt = m.node_tree
     for n in list(nt.nodes):
         nt.nodes.remove(n)
@@ -50,6 +57,9 @@ def _plain(m, color, rough=0.85, alpha=None):
     if alpha is not None:
         p.inputs["Alpha"].default_value = alpha
         m.surface_render_method = 'BLENDED'
+    if emit is not None and emit_s > 0:
+        p.inputs["Emission Color"].default_value = (*emit[:3], 1)
+        p.inputs["Emission Strength"].default_value = emit_s
     nt.links.new(p.outputs[0], out.inputs[0])
 
 
@@ -95,9 +105,11 @@ def _leaf_material(m, spec):
     m.use_backface_culling = False
 
 
-def _bake_terrain(ob, res, darken=1.0):
+def _bake_terrain(ob, res, darken=1.0, keep_uv=False):
     """Bake the object's (procedural, multi-material) colour into one texture."""
     me = ob.data
+    if keep_uv and me.uv_layers:
+        return _bake_with_uv(ob, res)
     xs = [v.co.x for v in me.vertices]
     ys = [v.co.y for v in me.vertices]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
@@ -149,11 +161,40 @@ def _bake_terrain(ob, res, darken=1.0):
             me.uv_layers.remove(u)
 
 
+def _bake_with_uv(ob, res):
+    me = ob.data
+    img = bpy.data.images.new(ob.name + "_bake", res, res, alpha=False)
+    for m in me.materials:
+        t = m.node_tree.nodes.new("ShaderNodeTexImage")
+        t.image = img
+        m.node_tree.nodes.active = t
+    sc = bpy.context.scene
+    sc.render.engine = 'CYCLES'
+    sc.cycles.samples = 4
+    sc.render.bake.use_pass_direct = False
+    sc.render.bake.use_pass_indirect = False
+    sc.render.bake.use_pass_color = True
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.bake(type='DIFFUSE')
+    img.pack()
+    bm = bpy.data.materials.new(ob.name + "_ground")
+    bm.use_nodes = True
+    p = bm.node_tree.nodes["Principled BSDF"]
+    t = bm.node_tree.nodes.new("ShaderNodeTexImage")
+    t.image = img
+    bm.node_tree.links.new(t.outputs["Color"], p.inputs["Base Color"])
+    me.materials.clear()
+    me.materials.append(bm)
+
+
 def _kind(template_name):
-    for k in ("Euc", "Rnd", "Mango", "Jac", "Acacia", "Palm", "FarTree"):
+    for k in ("Euc", "Rnd", "Mango", "Jac", "Acacia", "Palm", "FarTree", "Fig", "Giant", "Mid", "Pine"):
         if template_name.startswith(k):
             return "tree"
-    if template_name.startswith(("Ban", "Shrub", "Bush", "Tuft")):
+    if template_name.startswith(("Ban", "Shrub", "Bush", "Tuft", "Aloe", "Fern")):
         return "small"
     return "prop"
 
@@ -236,8 +277,19 @@ def export(out_path, rot_deg=0.0, near_r=260.0, far_r=1800.0, near_trees=90, far
         for v in t.data.vertices:
             if math.hypot(v.co.x, v.co.y) < 40:
                 v.co.z -= 0.03
+    for ob in list(bpy.data.objects):
+        if ob.type == 'MESH' and ob.get("bake"):
+            _bake_terrain(ob, int(ob["bake"]), darken=1.0, keep_uv=True)
+            if ob.get("bake_emit"):
+                m = ob.data.materials[0]
+                p = m.node_tree.nodes["Principled BSDF"]
+                t = [n for n in m.node_tree.nodes if n.type == 'TEX_IMAGE'][0]
+                m.node_tree.links.new(t.outputs["Color"], p.inputs["Emission Color"])
+                p.inputs["Emission Strength"].default_value = float(ob["bake_emit"])
+            terrain_res[ob.name] = 0
     # 3. materials: leaf cards -> textures, others -> plain colours
     terrain_mats = {m.name for tn in terrain_res for o in [bpy.data.objects.get(tn)] if o for m in o.data.materials}
+    terrain_res = {k: v for k, v in terrain_res.items() if v}
     for m in bpy.data.materials:
         if m.name in terrain_mats or not m.node_tree:
             continue
@@ -248,7 +300,8 @@ def export(out_path, rot_deg=0.0, near_r=260.0, far_r=1800.0, near_trees=90, far
         elif m.name in ("Water", "NileWater"):
             _plain(m, _ramp_avg(m.node_tree), 0.06)
         elif not m.name.endswith(("_ground", "_proxyLeaf", "_proxyBark")):
-            _plain(m, _ramp_avg(m.node_tree))
+            e, es = _emission(m.node_tree)
+            _plain(m, _ramp_avg(m.node_tree), emit=e, emit_s=es)
     # 4. instances -> LOD -> realized meshes
     tmpl = bpy.data.collections.get("Templates")
     templates = {o.data.name: o for o in (tmpl.objects if tmpl else [])}
@@ -276,7 +329,7 @@ def export(out_path, rot_deg=0.0, near_r=260.0, far_r=1800.0, near_trees=90, far
                 keep["small"].append(_realize(o, o.data))
         else:
             if r < prop_r and np_ < max_props:
-                if r > house_r and t.name.startswith(("Home", "House")):
+                if r > house_r and t.name.startswith(("Home", "House", "Rond")):
                     if t.name not in proxies:
                         proxies[t.name] = _house_proxy(t)
                     keep["prop"].append(_realize(o, proxies[t.name].data))
@@ -304,6 +357,7 @@ def export(out_path, rot_deg=0.0, near_r=260.0, far_r=1800.0, near_trees=90, far
     # 6. rotate world so the hero view faces the broadcast camera
     if rot_deg:
         R = Matrix.Rotation(math.radians(rot_deg), 4, 'Z')
+        bpy.context.view_layer.update()
         for ob in bpy.data.objects:
             if ob.parent is None:
                 ob.matrix_world = R @ ob.matrix_world
